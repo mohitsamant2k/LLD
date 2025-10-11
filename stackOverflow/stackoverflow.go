@@ -20,6 +20,10 @@ type StackOverFlow struct {
 	// question , tag, tagquestion make three entity iterate inb tagquestion entity
 }
 
+func (s *StackOverFlow) AddUSer(user *User) {
+	s.users = append(s.users, user)
+}
+
 func (s *StackOverFlow) GetUser(userId string) *User {
 	for _, v := range s.users {
 		if v.userId == userId {
@@ -83,6 +87,30 @@ func (s *StackOverFlow) AddAnswer(userId string, questionId string, content stri
 	}
 	fmt.Println("No Question exist")
 
+}
+
+func (s *StackOverFlow) Getpost(postId string) *VotablePost {
+	for _, v := range s.questions {
+		if v.postId == postId {
+			return v.VotablePost
+		}
+	}
+
+	for _, v := range s.answers {
+		if v.postId == postId {
+			return v.VotablePost
+		}
+	}
+	return nil
+}
+
+func (s *StackOverFlow) AddVotes(userId string, postId string, votes int) {
+	v := s.Getpost(postId)
+	if v != nil {
+		v.AddVotes(s.GetUser(userId), votes)
+		return
+	}
+	fmt.Println("no post found")
 }
 
 func GetInstance() (*StackOverFlow, error) {

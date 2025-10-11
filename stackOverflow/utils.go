@@ -33,7 +33,7 @@ type VotablePost struct{
 }
 
 func (vp *VotablePost) AddObserver(){
-	
+	// to do
 }
 
 func (vp *VotablePost) AddVotes(user *User, vote int ){
