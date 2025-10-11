@@ -3,7 +3,6 @@ package stackOverflow
 import (
 	"fmt"
 	"sync"
-	"time"
 )
 
 var (
@@ -51,12 +50,12 @@ func (s *StackOverFlow) GetAnswer(postId string) *Answer {
 	return nil
 }
 
-func (s *StackOverFlow) AddQuestion(userId string, content string) {
+func (s *StackOverFlow) AddQuestion(userId string, content string, id string) {
 	question := &Question{
 		VotablePost: &VotablePost{
 			CommentablePost: &CommentablePost{
 				Post: &Post{
-					postId:  userId + time.Now().Format(time.RFC3339),
+					postId:  id,
 					content: content,
 					author:  s.GetUser(userId),
 				},
@@ -67,13 +66,13 @@ func (s *StackOverFlow) AddQuestion(userId string, content string) {
 	s.questions = append(s.questions, question)
 }
 
-func (s *StackOverFlow) AddAnswer(userId string, questionId string, content string) {
+func (s *StackOverFlow) AddAnswer(userId string, questionId string, content string, id string) {
 	if s.GetQuestion(questionId) != nil {
 		answer := &Answer{
 			VotablePost: &VotablePost{
 				CommentablePost: &CommentablePost{
 					Post: &Post{
-						postId:  userId + time.Now().Format(time.RFC3339),
+						postId:  id,
 						content: content,
 						author:  s.GetUser(userId),
 					},
