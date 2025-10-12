@@ -12,6 +12,8 @@ type TaskScheduler struct {
 	taskQueue   *PriorityQueue
 	mu          sync.Mutex
 	signal      chan struct{}
+	stop        chan struct{}
+	timerChan   <-chan time.Time // receive only channel
 }
 
 func NewTaskScheduler(numThread int) *TaskScheduler {
@@ -21,7 +23,8 @@ func NewTaskScheduler(numThread int) *TaskScheduler {
 	ret := &TaskScheduler{
 		numOfThread: numThread,
 		taskQueue:   pq,
-		signal:      make(chan struct{}, 1),
+		signal:      make(chan struct{}),
+		stop:        make(chan struct{}),
 	}
 
 	for range numThread {
@@ -34,25 +37,36 @@ func NewTaskScheduler(numThread int) *TaskScheduler {
 func (t *TaskScheduler) Worker() {
 	// wait for timer or new task signal
 	for {
-		<-t.signal
-		t.mu.Lock()
-		fmt.Println("worker threead")
-		if t.taskQueue.Len() == 0 {
-			continue
-		}
-		task := heap.Pop(t.taskQueue).(*Task)
-		now := time.Now()
-		if now.Before(task.runat) {
+		select {
+		case <-t.stop:
+			return
+		case <-t.signal:
+			t.mu.Lock()
+			// fmt.Println("worker thread")
+			if t.taskQueue.Len() == 0 {
+				continue
+			}
+			task := heap.Pop(t.taskQueue).(*Task)
 			heap.Push(t.taskQueue, task)
-			time.Sleep(task.runat.Sub(now))
-			fmt.Println("sleep over")
+			now := time.Now()
+			timer := time.NewTimer(task.runat.Sub(now))
+			// fmt.Printf("%+v, %+v", now, task.runat)
+			t.timerChan = timer.C
+			t.mu.Unlock()
+		case <-t.timerChan:
+			//
+			
+			t.mu.Lock()
+			if t.taskQueue.Len() == 0 {
+				// fmt.Printf("continue")
+				continue
+			}
+			task := heap.Pop(t.taskQueue).(*Task)
 			t.signal <- struct{}{}
-		} else {
-			fmt.Println("Task excuting")
+			// fmt.Println(" task is there")
 			task.task()
+			t.mu.Unlock()
 		}
-		t.mu.Unlock()
-
 	}
 
 }
@@ -120,9 +134,11 @@ func RunDemo() {
 		fmt.Printf("Scheduled %s (runs in %ds)\n", name, delay)
 	}
 	fmt.Println("here is addong")
-	add("task1", 1)
-	add("task2", 3)
-	add("task3", 2)
+	add("love", 4)
+	add("you", 5)
+	add("--", 6)
+	time.Sleep(2 * time.Second)
+	add("I", 1)
 
 	wg.Wait()
 	fmt.Printf("All tasks done in %v\n", time.Since(start))
