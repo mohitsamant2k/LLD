@@ -64,8 +64,9 @@ func (t *TaskScheduler) Worker() {
 			task := heap.Pop(t.taskQueue).(*Task)
 			t.signal <- struct{}{}
 			// fmt.Println(" task is there")
-			task.task()
+			
 			t.mu.Unlock()
+			task.task()
 		}
 	}
 
