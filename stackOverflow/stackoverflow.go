@@ -7,7 +7,7 @@ import (
 
 var (
 	instance *StackOverFlow
-	mu       sync.Mutex
+	once     sync.Once
 )
 
 type StackOverFlow struct {
@@ -113,10 +113,8 @@ func (s *StackOverFlow) AddVotes(userId string, postId string, votes int) {
 }
 
 func GetInstance() (*StackOverFlow, error) {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance == nil {
+	once.Do(func() {
 		instance = &StackOverFlow{}
-	}
+	})
 	return instance, nil
 }
