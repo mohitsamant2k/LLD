@@ -23,9 +23,9 @@ func NewTaskScheduler(numThread int) *TaskScheduler {
 	ret := &TaskScheduler{
 		numOfThread: numThread,
 		taskQueue:   pq,
-		signal:      make(chan struct{}, 10), //we have to give buffer else dealock occur. suppose in the schduler nothing is there in queue . then if two task come simultaneouly . then t.signal <- struct{}{} and t.mu.lock in scheduler will waith for each othert
+		signal:      make(chan struct{}),
 		stop:        make(chan struct{}),
-		task:        make(chan func(), 10),
+		task:        make(chan func()),
 	}
 
 	go ret.Scheduler()
@@ -87,6 +87,26 @@ func (t *TaskScheduler) Worker() {
 
 }
 
+func (t *TaskScheduler) AddTask(task func(), delay int) {
+	runat := time.Now().Add(time.Duration(delay) * time.Second)
+	curr := &Task{
+		task:  task,
+		runat: runat, // convert the delay into duration
+	}
+
+	// When a new task comes, we will send a signal to the worker thread that a new task is available.
+	// One thread can continue and check the highest priority task.
+	// If that task's runat is before or equal to the current time, then run that task.
+	// If not, then go to sleep for some time and wait for the timer signal.
+	t.mu.Lock()
+	heap.Push(t.taskQueue, curr)
+	select {
+	case t.signal <- struct{}{}:
+	default:
+	}
+	t.mu.Unlock()
+}
+
 type Task struct {
 	task  func()
 	runat time.Time
@@ -115,23 +135,6 @@ func (pq *PriorityQueue) Pop() any {
 	item := old[n-1]
 	*pq = old[0 : n-1]
 	return item
-}
-
-func (t *TaskScheduler) AddTask(task func(), delay int) {
-	runat := time.Now().Add(time.Duration(delay) * time.Second)
-	curr := &Task{
-		task:  task,
-		runat: runat, // convert the delay into duration
-	}
-
-	// When a new task comes, we will send a signal to the worker thread that a new task is available.
-	// One thread can continue and check the highest priority task.
-	// If that task's runat is before or equal to the current time, then run that task.
-	// If not, then go to sleep for some time and wait for the timer signal.
-	t.mu.Lock()
-	heap.Push(t.taskQueue, curr)
-	t.signal <- struct{}{}
-	t.mu.Unlock()
 }
 
 // RunDemo demonstrates scheduling 3 tasks with different delays and waits for them to finish.
