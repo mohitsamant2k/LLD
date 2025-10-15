@@ -13,7 +13,7 @@ type TaskScheduler struct {
 	mu          sync.Mutex
 	signal      chan struct{}
 	stop        chan struct{}
-	timerChan   <-chan time.Time // receive only channel
+	task        chan func()
 }
 
 func NewTaskScheduler(numThread int) *TaskScheduler {
@@ -23,9 +23,12 @@ func NewTaskScheduler(numThread int) *TaskScheduler {
 	ret := &TaskScheduler{
 		numOfThread: numThread,
 		taskQueue:   pq,
-		signal:      make(chan struct{}),
+		signal:      make(chan struct{}, 10), //we have to give buffer else dealock occur. suppose in the schduler nothing is there in queue . then if two task come simultaneouly . then t.signal <- struct{}{} and t.mu.lock in scheduler will waith for each othert
 		stop:        make(chan struct{}),
+		task:        make(chan func(), 10),
 	}
+
+	go ret.Scheduler()
 
 	for range numThread {
 		go ret.Worker()
@@ -34,39 +37,51 @@ func NewTaskScheduler(numThread int) *TaskScheduler {
 	return ret
 }
 
+func (t *TaskScheduler) Scheduler() {
+	for {
+		t.mu.Lock()
+		if t.taskQueue.Len() == 0 {
+			t.mu.Unlock()
+			select {
+			case <-t.signal:
+				continue
+			case <-t.stop:
+				return
+			}
+		}
+		// fmt.Println("t.taskQueue.Len()")
+		next := (*t.taskQueue)[0]
+		delay := next.runat.Sub(time.Now())
+		t.mu.Unlock()
+		timer := time.NewTimer(delay)
+
+		select {
+		case <-t.stop:
+			return
+		case <-timer.C:
+			t.mu.Lock()
+			if t.taskQueue.Len() > 0 {
+				nn := heap.Pop(t.taskQueue).(*Task)
+				t.mu.Unlock()
+				t.task <- nn.task
+				continue
+			}
+			t.mu.Unlock()
+		case <-t.signal:
+			continue
+		}
+
+	}
+}
+
 func (t *TaskScheduler) Worker() {
 	// wait for timer or new task signal
 	for {
 		select {
+		case task := <-t.task:
+			task()
 		case <-t.stop:
 			return
-		case <-t.signal:
-			t.mu.Lock()
-			// fmt.Println("worker thread")
-			if t.taskQueue.Len() == 0 {
-				continue
-			}
-			task := heap.Pop(t.taskQueue).(*Task)
-			heap.Push(t.taskQueue, task)
-			now := time.Now()
-			timer := time.NewTimer(task.runat.Sub(now))
-			// fmt.Printf("%+v, %+v", now, task.runat)
-			t.timerChan = timer.C
-			t.mu.Unlock()
-		case <-t.timerChan:
-			//
-			
-			t.mu.Lock()
-			if t.taskQueue.Len() == 0 {
-				// fmt.Printf("continue")
-				continue
-			}
-			task := heap.Pop(t.taskQueue).(*Task)
-			t.signal <- struct{}{}
-			// fmt.Println(" task is there")
-			
-			t.mu.Unlock()
-			task.task()
 		}
 	}
 
@@ -134,7 +149,6 @@ func RunDemo() {
 		}, delay)
 		fmt.Printf("Scheduled %s (runs in %ds)\n", name, delay)
 	}
-	fmt.Println("here is addong")
 	add("love", 4)
 	add("you", 5)
 	add("--", 6)
