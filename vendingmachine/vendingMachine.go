@@ -49,6 +49,15 @@ func (v *VendingMachine) IsItemExist(item string) bool {
 	return ok && pq.quantity > 0
 }
 
+func (vm *VendingMachine) purchase(item string , coins ...int)  {
+	vm.currentState = vm.currentState.SelectItem(item)
+	for _, c := range coins {
+		vm.currentState = vm.currentState.InsertCoin(c)
+	}
+	vm.currentState = vm.currentState.Dispense()
+	fmt.Printf("Remaining qty of %s: %d\n", item, vm.items[item].quantity)
+}
+
 func RunDemo() {
 	fmt.Println("Vending Machine Demo Start")
 	vm := &VendingMachine{
@@ -66,30 +75,20 @@ func RunDemo() {
 		fmt.Printf("  %s => qty=%d price=%d\n", k, v.quantity, v.price)
 	}
 
-	purchase := func(item string, coins ...int) {
-		
-		vm.currentState = vm.currentState.SelectItem(item)
-		for _, c := range coins {
-			vm.currentState = vm.currentState.InsertCoin(c)
-		}
-		vm.currentState = vm.currentState.Dispense()
-		fmt.Printf("Remaining qty of %s: %d\n", item, vm.items[item].quantity)
-	}
-
 	// Buy soda (only one in stock) and chips twice
-	purchase("soda", 5, 2)  // exact (5+2=7)
-	purchase("chips", 2, 3) // pay in parts for price 5
-	purchase("chips", 5)    // second pack
+	vm.purchase("soda", 5, 2)  // exact (5+2=7)
+	vm.purchase("chips", 2, 3) // pay in parts for price 5
+	vm.purchase("chips", 5)    // second pack
 
 	// Exhaust gum completely
-	purchase("gum", 2)    // first
-	purchase("gum", 2)    // second
-	purchase("gum", 1, 1) // third (over-pay split)
+	vm.purchase("gum", 2)    // first
+	vm.purchase("gum", 2)    // second
+	vm.purchase("gum", 1, 1) // third (over-pay split)
 
 	// Try to buy exhausted items again
-	purchase("soda", 7)
-	purchase("chips", 5)
-	purchase("gum", 2)
+	vm.purchase("soda", 7)
+	vm.purchase("chips", 5)
+	vm.purchase("gum", 2)
 
 	fmt.Println("\nFinal inventory (including zero-qty entries):")
 	for k, v := range vm.items {
